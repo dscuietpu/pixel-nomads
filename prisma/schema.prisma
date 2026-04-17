@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Document {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  type      String
+  tags      String   @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Feature {
+  id          String  @id @default(uuid())
+  title       String
+  description String
+  status      String
+  priority    String
+  reach       Float
+  impact      Float
+  confidence  Float
+  effort      Float
+  riceScore   Float
+  moscow      String
+  assignee    String  @default("")
+  dueDate     String  @default("")
+  linkedDocId String?
+}
+
+model AIMessage {
+  id        String   @id @default(uuid())
+  role      String
+  content   String
+  workflow  String
+  timestamp DateTime @default(now())
+}
+
+model ResearchInsight {
+  id             String @id @default(uuid())
+  theme          String
+  summary        String
+  quotes         String @default("[]")
+  frequency      Int
+  linkedFeatures String @default("[]")
+}
+
+model FileNode {
+  id        String   @id
+  name      String
+  type      String
+  parentId  String?
+  children  String   @default("[]")
+  createdAt DateTime @default(now())
+}
