@@ -82,6 +82,7 @@ export interface Workspace {
   insights: ResearchInsight[]
   fileNodes: FileNode[]
   activeDocId: string | null
+  activeFolderId: string | null
   activeSidebarTab: string
   theme: Theme
   saveStatus: SaveStatus

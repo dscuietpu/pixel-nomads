@@ -161,7 +161,7 @@ interface TreeState {
 
 /* ── Tree row ────────────────────────────────────────────────────── */
 function TreeNode({ node, depth, tree }: { node: FileNode; depth: number; tree: TreeState }) {
-  const { fileNodes, activeDocId, setActiveDoc } = useWorkspaceStore()
+  const { fileNodes, activeDocId, setActiveDoc, setActiveFolderId } = useWorkspaceStore()
 
   const isFolder      = node.type === 'folder'
   const isExpanded    = !tree.collapsed.has(node.id)
@@ -191,8 +191,13 @@ function TreeNode({ node, depth, tree }: { node: FileNode; depth: number; tree: 
         onMouseLeave={() => setHovered(false)}
         onClick={() => {
           if (isRenaming) return
-          if (isFolder) tree.onToggle(node.id)
-          else setActiveDoc(node.id)
+          if (isFolder) {
+            tree.onToggle(node.id)
+            setActiveFolderId(node.id)
+          } else {
+            setActiveDoc(node.id)
+            setActiveFolderId(node.parentId)
+          }
         }}
         onDoubleClick={() => { if (!isRenaming) tree.onStartRename(node.id, node.name) }}
       >
@@ -310,7 +315,7 @@ function TreeNode({ node, depth, tree }: { node: FileNode; depth: number; tree: 
 
 /* ── FileExplorer ────────────────────────────────────────────────── */
 export default function FileExplorer() {
-  const { fileNodes, addFolder, addDocumentFile, renameFileNode, deleteFileNode } = useWorkspaceStore()
+  const { fileNodes, addFolder, addDocumentFile, renameFileNode, deleteFileNode, setActiveFolderId } = useWorkspaceStore()
 
   const [collapsed,     setCollapsed]     = useState<Set<string>>(new Set())
   const [renamingId,    setRenamingId]    = useState<string | null>(null)
@@ -335,9 +340,15 @@ export default function FileExplorer() {
   }
 
   const handleNewItem = (parentId: string | null, type: FileNodeType, name: string) => {
-    if (type === 'folder') addFolder(name, parentId)
-    else addDocumentFile(type as DocumentType, name, parentId)
-    expandFolder(parentId)
+    if (type === 'folder') {
+      const folderId = addFolder(name, parentId)
+      setActiveFolderId(folderId)
+      expandFolder(parentId)
+    } else {
+      addDocumentFile(type as DocumentType, name, parentId)
+      if (parentId) setActiveFolderId(parentId)
+      expandFolder(parentId)
+    }
   }
 
   const handleDelete = (id: string) => {

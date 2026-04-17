@@ -44,8 +44,20 @@ const NEW_DOC_OPTIONS: { type: DocumentType; label: string; icon: React.ReactNod
   { type: 'general',     label: 'New General Note',  icon: <LayoutDashboard size={14} />},
 ]
 
+const DOC_TYPE_LABELS: Record<DocumentType, string> = {
+  prd: 'PRD', 'user-story': 'User Story', research: 'Research', roadmap: 'Roadmap', general: 'Note',
+}
+
+function autoTitle(type: DocumentType, folderName: string | null): string {
+  const label = DOC_TYPE_LABELS[type]
+  return folderName ? `${folderName} — ${label}` : `Untitled ${label}`
+}
+
 export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
-  const { addDocument, setActiveDoc, setActiveSidebarTab, setPendingAICommand } = useWorkspaceStore()
+  const {
+    addDocumentFile, setActiveDoc, setActiveSidebarTab, setPendingAICommand,
+    activeFolderId, fileNodes,
+  } = useWorkspaceStore()
   const [query, setQuery]     = useState('')
   const [mode, setMode]       = useState<CommandMode>('ai')
   const [selected, setSelected] = useState(0)
@@ -89,13 +101,13 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     } else {
       const d = filtered[idx] as typeof NEW_DOC_OPTIONS[number]
       if (!d) return
-      const titles: Record<DocumentType, string> = {
-        prd: 'Untitled PRD', 'user-story': 'Untitled User Story',
-        research: 'Untitled Research', roadmap: 'Untitled Roadmap', general: 'Untitled Note',
-      }
-      const id = addDocument({ title: titles[d.type], content: '', type: d.type, tags: [] })
+      const folderName = activeFolderId
+        ? (fileNodes.find(n => n.id === activeFolderId)?.name ?? null)
+        : null
+      const title = autoTitle(d.type, folderName)
+      const id = addDocumentFile(d.type, title, activeFolderId)
       setActiveDoc(id)
-      toast.success(`Created ${d.label}`)
+      toast.success(`Created ${d.label}${folderName ? ` in "${folderName}"` : ''}`)
       onClose()
     }
   }

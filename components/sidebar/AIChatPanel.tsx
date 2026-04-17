@@ -8,7 +8,7 @@ import remarkGfm from 'remark-gfm'
 import {
   Send, Copy, Check, Trash2, FileText, BookOpen,
   Map, BarChart3, FlaskConical, TrendingUp, Wand2,
-  ToggleLeft, ToggleRight, ChevronRight, Code2,
+  ToggleLeft, ToggleRight, ChevronRight, Code2, MessageSquare,
 } from 'lucide-react'
 import { useWorkspaceStore } from '@/lib/store'
 import type { AIWorkflow, AIMessage, DocumentType } from '@/lib/types'
@@ -19,6 +19,7 @@ const WORKFLOWS: {
   label: string
   emoji: string
   icon: React.ReactNode
+  isGeneral?: boolean
 }[] = [
   { id: 'prd',            label: 'PRD',       emoji: '✍️', icon: <FileText size={12} /> },
   { id: 'stories',        label: 'Stories',   emoji: '📋', icon: <BookOpen size={12} /> },
@@ -26,48 +27,136 @@ const WORKFLOWS: {
   { id: 'prioritization', label: 'Prioritize',emoji: '⚖️', icon: <BarChart3 size={12} /> },
   { id: 'research',       label: 'Research',  emoji: '🔍', icon: <FlaskConical size={12} /> },
   { id: 'data',           label: 'Data',      emoji: '📊', icon: <TrendingUp size={12} /> },
+  { id: 'general',        label: 'Chat',      emoji: '💬', icon: <MessageSquare size={12} />, isGeneral: true },
 ]
 
 /* ── Starter prompts per workflow ───────────────────────────────── */
 const STARTERS: Record<AIWorkflow, { label: string; prompt: string }[]> = {
   prd: [
-    { label: 'Draft a PRD',         prompt: 'Draft a PRD for [describe your feature or idea here]' },
-    { label: 'Review for gaps',     prompt: 'Review my PRD and identify any missing sections, unclear requirements, or logical gaps.' },
-    { label: 'Rewrite problem statement', prompt: 'Rewrite the problem statement in my PRD to be clearer and more compelling.' },
-    { label: 'Add success metrics', prompt: 'Suggest 5 measurable success metrics for this feature based on common product KPIs.' },
+    {
+      label: 'Draft a full PRD',
+      prompt: 'Draft a complete PRD for the following feature:\n\nFeature: [name]\nProblem: [what user pain are we solving?]\nTarget users: [who specifically?]\nContext: [any constraints, existing solutions, or background]\n\nInclude problem statement, success metrics, user stories, scope, functional requirements, and open questions.',
+    },
+    {
+      label: 'Strengthen problem statement',
+      prompt: 'Rewrite the problem statement in my PRD to be more compelling and specific. Use jobs-to-be-done framing. Replace any vague language with measurable, concrete evidence. Make it clear why this problem matters now.',
+    },
+    {
+      label: 'Add success metrics',
+      prompt: 'My PRD is missing strong success metrics. Suggest 4–6 measurable KPIs for this feature — include both leading indicators (signal fast) and lagging indicators (confirm real impact). Format as: Metric | Baseline | Target | How to Measure | Timeline.',
+    },
+    {
+      label: 'Review for gaps',
+      prompt: 'Review my PRD critically. Identify: (1) sections that are missing or thin, (2) requirements that are vague or untestable, (3) scope that seems too broad for one release, (4) risks or dependencies not addressed. Be direct — I want the hard feedback.',
+    },
   ],
   stories: [
-    { label: 'Generate from PRD',   prompt: 'Generate user stories from my PRD document. Include acceptance criteria for each.' },
-    { label: 'Add edge cases',      prompt: 'What edge cases am I missing in these user stories? Add Gherkin scenarios for each.' },
-    { label: 'Write acceptance criteria', prompt: 'Write Gherkin-format acceptance criteria for: [describe your feature]' },
-    { label: 'Break into smaller stories', prompt: 'Break this epic into smaller, independently deliverable user stories.' },
+    {
+      label: 'Generate stories from PRD',
+      prompt: 'Generate a complete set of user stories from the PRD in the active document. For each story include: user story format, story point estimate with justification, Gherkin acceptance criteria (happy path + 2 edge cases + 1 error path), and definition of done.',
+    },
+    {
+      label: 'Write a story from scratch',
+      prompt: 'Write a production-ready user story for the following feature:\n\nFeature: [describe it]\nPersona: [who is the user?]\nContext: [when does this come up in their workflow?]\n\nInclude acceptance criteria in Gherkin format, story points, dependencies, and DoD.',
+    },
+    {
+      label: 'Find missing edge cases',
+      prompt: 'Review these user stories and identify the edge cases and failure scenarios I haven\'t covered yet. For each gap, write the missing Gherkin scenario:\n\n[paste your stories here]',
+    },
+    {
+      label: 'Split an epic',
+      prompt: 'This story is too large to ship in one sprint. Split it into smaller, independently deliverable stories that each deliver user value on their own. Explain the split rationale and suggest a delivery sequence:\n\n[paste the epic here]',
+    },
   ],
   roadmap: [
-    { label: 'Sequence features',   prompt: 'Help me sequence these features into a 3-quarter roadmap: [list your features]' },
-    { label: 'Plan Q2 roadmap',     prompt: 'Draft a Q2 roadmap plan based on my current feature backlog.' },
-    { label: 'Identify dependencies', prompt: 'What dependencies or blockers should I be aware of for these features?' },
-    { label: 'Now / Next / Later',  prompt: 'Organise these initiatives into Now / Next / Later buckets with rationale: [list initiatives]' },
+    {
+      label: 'Build a Now / Next / Later roadmap',
+      prompt: 'Help me organise these initiatives into a Now / Next / Later roadmap. For each item, suggest which bucket it belongs in and explain the sequencing logic — dependencies, risk, learning value, or revenue impact:\n\n[list your initiatives here]',
+    },
+    {
+      label: 'Write a roadmap narrative',
+      prompt: 'Write a compelling roadmap narrative for the next 2 quarters that I can present to stakeholders. Include: strategic theme, what we\'re building and why, what we\'re explicitly not building, and the 3 most important bets we\'re making. Tone should be confident but honest about uncertainty.',
+    },
+    {
+      label: 'Identify blockers & dependencies',
+      prompt: 'For the features in my active document, map out the dependencies and potential blockers. Which items can\'t start until something else is done? Which require decisions from other teams? What\'s the critical path?',
+    },
+    {
+      label: 'What are we saying no to?',
+      prompt: 'Based on my current roadmap priorities, what am I implicitly saying no to? Help me identify the important things I\'m deprioritising, and write a clear rationale for each so I can communicate it to stakeholders confidently.',
+    },
   ],
   prioritization: [
-    { label: 'RICE scoring',        prompt: 'Score these features using RICE and rank them: [list your features]' },
-    { label: 'Apply MoSCoW',        prompt: 'Apply MoSCoW prioritisation to my backlog and explain the reasoning.' },
-    { label: 'What to build first', prompt: 'Given our goals and constraints, which feature should we build first and why?' },
-    { label: 'Compare trade-offs',  prompt: 'Compare the trade-offs between building [Feature A] vs [Feature B] now.' },
+    {
+      label: 'Full RICE analysis',
+      prompt: 'Run a RICE prioritisation analysis on these features. Score each on Reach, Impact, Confidence, and Effort — show your reasoning for every score, mark assumptions explicitly, then rank them. End with a clear recommendation:\n\n[list your features with any available context]',
+    },
+    {
+      label: 'Apply MoSCoW to my backlog',
+      prompt: 'Apply MoSCoW prioritisation to my feature backlog. For each Must Have, explain why it\'s non-negotiable. For each Won\'t Have, explain what would need to change to promote it. Be opinionated:\n\n[paste your backlog]',
+    },
+    {
+      label: 'Make the hard call',
+      prompt: 'I have to cut scope for this release. Here are my features and constraints:\n\nFeatures: [list them]\nConstraints: [timeline / team size / dependencies]\nGoal: [what does a successful release look like?]\n\nTell me what to cut, what to keep, and make the case I can bring to my team.',
+    },
+    {
+      label: 'Compare two bets',
+      prompt: 'Help me decide between these two strategic bets:\n\nOption A: [describe it]\nOption B: [describe it]\nContext: [team size, timeline, company stage, strategic goals]\n\nAnalyse the trade-offs across: user value, strategic fit, effort, risk, and reversibility. Give me a recommendation.',
+    },
   ],
   research: [
-    { label: 'Synthesize interviews', prompt: 'Synthesize these user interview notes into themes and insights:\n\n[paste your notes here]' },
-    { label: 'Find patterns',       prompt: 'Identify patterns and recurring themes in this customer feedback:\n\n[paste feedback here]' },
-    { label: 'Surface key themes',  prompt: 'What are the top 5 themes from this research data? Include supporting quotes.' },
-    { label: 'Product opportunities', prompt: 'Based on this research, what product opportunities should we prioritise?' },
+    {
+      label: 'Synthesize interview notes',
+      prompt: 'Synthesize these user interview notes into structured research insights. Identify recurring themes, extract the most revealing quotes, map each theme to a product opportunity, and rate severity. Distinguish observed behaviour from stated preference:\n\n[paste your notes here]',
+    },
+    {
+      label: 'Extract themes from feedback',
+      prompt: 'Analyse this customer feedback and extract the top themes. For each theme: how many people raised it, what\'s the underlying need or frustration, what quotes best illustrate it, and what product action it suggests:\n\n[paste NPS comments / support tickets / survey responses]',
+    },
+    {
+      label: 'Turn research into a brief',
+      prompt: 'Turn the research in my active document into a crisp research brief I can share with engineering and design. One page max. Lead with the 3 most important insights, show the supporting evidence, and end with the 3 recommended product actions ranked by impact.',
+    },
+    {
+      label: 'What are we not asking?',
+      prompt: 'Look at my research document and tell me: what questions haven\'t I asked that I should have? What user segments or scenarios are unrepresented? What assumptions am I making that aren\'t validated? Design a follow-up research plan to close the biggest gaps.',
+    },
   ],
   data: [
-    { label: 'Analyse funnel',      prompt: 'Analyse this funnel data and identify the biggest drop-off points:\n\n[paste data here]' },
-    { label: 'Spot anomalies',      prompt: 'Are there any anomalies or unexpected patterns in these metrics?\n\n[paste metrics here]' },
-    { label: 'Suggest A/B tests',   prompt: 'Based on this data, what A/B tests should I run to improve conversion?' },
-    { label: 'Root cause analysis', prompt: 'What might be causing this drop-off in [metric]? Walk me through possible root causes.' },
+    {
+      label: 'Analyse funnel drop-off',
+      prompt: 'Analyse this funnel data and diagnose the biggest drop-off points. For each drop-off: what\'s the likely cause, what would confirm or rule it out, and what experiment would fix it fastest?\n\n[paste your funnel data — step names, user counts, conversion rates]',
+    },
+    {
+      label: 'Interpret these metrics',
+      prompt: 'Help me interpret these product metrics. What\'s the story they\'re telling? What\'s anomalous or unexpected? What hypotheses should I test?\n\n[paste your metrics, include time range and context]',
+    },
+    {
+      label: 'Design an A/B test',
+      prompt: 'I want to run an A/B test on the following change:\n\nChange: [what you\'re testing]\nHypothesis: [what you believe will happen and why]\nPrimary metric: [what you\'re optimising]\nCurrent baseline: [current conversion / metric value]\n\nHelp me design the experiment: success criteria, sample size, duration, guard-rails, and how to interpret results.',
+    },
+    {
+      label: 'Root cause a metric drop',
+      prompt: 'My [metric] dropped [X%] over [time period]. Help me do a structured root cause analysis. Walk me through: what segments to break it down by, what leading indicators to check, what external factors to rule out, and what the most likely causes are given this context:\n\n[describe your product and the drop]',
+    },
   ],
   general: [
-    { label: 'Ask anything',        prompt: 'How do I [describe your PM challenge]?' },
+    {
+      label: 'Think through a problem',
+      prompt: 'I\'m trying to think through a product problem and want a thinking partner. Here\'s the situation:\n\n[describe your challenge, what you\'ve tried, and where you\'re stuck]\n\nWhat am I missing? What frameworks or approaches would you apply here?',
+    },
+    {
+      label: 'Prepare for a tough convo',
+      prompt: 'I have a difficult conversation coming up and need to prepare. Help me think through my position, anticipate objections, and figure out how to frame it constructively:\n\nConversation: [describe it — re-prioritisation, saying no, scope debate, etc.]\nWith: [stakeholder / engineer / exec]\nMy goal: [what outcome do I want?]',
+    },
+    {
+      label: 'Explain a framework',
+      prompt: 'Explain [framework name — e.g. JTBD, dual-track agile, Kano model, opportunity solution trees] to me. Give me: the core idea in plain language, when to use it, a concrete example, and the most common way people misuse it.',
+    },
+    {
+      label: 'Review my thinking',
+      prompt: 'I\'m about to make this product decision and want a sanity check before I commit:\n\nDecision: [what you\'re deciding]\nReasoning: [why you\'re leaning this way]\nAlternatives considered: [what else you evaluated]\n\nChallenge my reasoning. What am I not seeing?',
+    },
   ],
 }
 
@@ -502,17 +591,28 @@ function EmptyState({
     <div className="flex flex-col items-center px-4 py-8 gap-5">
       <div
         className="flex items-center justify-center rounded-2xl"
-        style={{ width: 44, height: 44, background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))', border: '1px solid rgba(99,102,241,0.3)' }}
+        style={{
+          width: 44, height: 44,
+          background: wf?.id === 'general'
+            ? 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(6,182,212,0.15))'
+            : 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))',
+          border: wf?.id === 'general' ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(99,102,241,0.3)',
+        }}
       >
-        <span className="text-xl">{wf?.emoji}</span>
+        {wf?.id === 'general'
+          ? <MessageSquare size={20} style={{ color: '#34d399' }} />
+          : <span className="text-xl">{wf?.emoji}</span>
+        }
       </div>
       <div className="text-center">
         <p className="text-sm font-semibold mb-1" style={{ color: '#e4e4e7' }}>
-          {wf?.label} Assistant
+          {wf?.id === 'general' ? 'Free Chat' : `${wf?.label} Assistant`}
         </p>
         <p className="text-xs leading-relaxed" style={{ color: '#52525b' }}>
-          Your AI co-pilot for {wf?.label.toLowerCase()} work.
-          <br />Try a starter below or type your own question.
+          {wf?.id === 'general'
+            ? 'No document mode — ask anything. Strategy, trade-offs, frameworks, tough decisions.'
+            : `Your AI co-pilot for ${wf?.label.toLowerCase()} work. Try a starter below or type your own.`
+          }
         </p>
       </div>
 
@@ -536,7 +636,11 @@ function EmptyState({
               el.style.color = '#a1a1aa'
             }}
           >
-            <ChevronRight size={12} className="flex-shrink-0 text-indigo-500" />
+            <ChevronRight
+              size={12}
+              className="flex-shrink-0"
+              style={{ color: workflow === 'general' ? '#34d399' : '#6366f1' }}
+            />
             <span>{s.label}</span>
           </button>
         ))}
@@ -558,7 +662,8 @@ export default function AIChatPanel() {
   const {
     messages, addMessage,
     documents, activeDocId, applyAIContent,
-    addDocument, setActiveDoc,
+    addDocumentFile, setActiveDoc,
+    activeFolderId, fileNodes,
     pendingAICommand, clearPendingAICommand,
   } = useWorkspaceStore()
 
@@ -628,17 +733,17 @@ export default function AIChatPanel() {
         targetDocId = activeDoc.id
         targetDocTitle = activeDoc.title
       } else {
-        // Active doc is a different type (e.g. user was on a Stories doc and
-        // switched to the PRD tab). Always create a fresh document so we never
-        // silently overwrite an unrelated existing document.
-        const defaultTitles: Record<string, string> = {
-          prd: 'Untitled PRD',
-          'user-story': 'Untitled User Story',
-          roadmap: 'Untitled Roadmap',
-          research: 'Untitled Research',
+        // Active doc is a different type (or none). Always create a fresh document
+        // placed in the currently active folder, named after it.
+        const DOC_LABELS: Record<string, string> = {
+          prd: 'PRD', 'user-story': 'User Story', roadmap: 'Roadmap', research: 'Research',
         }
-        const title = defaultTitles[targetDocType] ?? 'Untitled Document'
-        targetDocId = addDocument({ title, content: '', type: targetDocType, tags: [] })
+        const folderName = activeFolderId
+          ? (fileNodes.find(n => n.id === activeFolderId)?.name ?? null)
+          : null
+        const label = DOC_LABELS[targetDocType] ?? 'Document'
+        const title = folderName ? `${folderName} — ${label}` : `Untitled ${label}`
+        targetDocId = addDocumentFile(targetDocType, title, activeFolderId)
         targetDocTitle = title
         setActiveDoc(targetDocId)
       }
@@ -727,7 +832,7 @@ export default function AIChatPanel() {
       setStreamingContent(null)
       setStreamingTargetTitle(null)
     }
-  }, [input, isStreaming, workflowMessages, useDocContext, documents, activeDocId, workflow, addMessage, addDocument, setActiveDoc, applyAIContent])
+  }, [input, isStreaming, workflowMessages, useDocContext, documents, activeDocId, workflow, addMessage, addDocumentFile, setActiveDoc, applyAIContent, activeFolderId, fileNodes])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -769,27 +874,43 @@ export default function AIChatPanel() {
         className="flex-shrink-0 border-b overflow-x-auto scrollbar-hide"
         style={{ borderColor: '#1e1e22', background: '#0d0d0f' }}
       >
-        <div className="flex min-w-max">
+        <div className="flex min-w-max items-stretch">
           {WORKFLOWS.map((wf) => {
             const active = workflow === wf.id
+            const isChat = wf.isGeneral
             return (
-              <button
-                key={wf.id}
-                onClick={() => setWorkflow(wf.id)}
-                className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors relative whitespace-nowrap flex-shrink-0"
-                style={{ color: active ? '#a5b4fc' : '#52525b' }}
-                onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#71717a' }}
-                onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#52525b' }}
-              >
-                <span>{wf.emoji}</span>
-                <span>{wf.label}</span>
-                {active && (
-                  <span
-                    className="absolute bottom-0 left-0 right-0 h-0.5"
-                    style={{ background: '#6366f1', borderRadius: '2px 2px 0 0' }}
+              <>
+                {/* Separator before the Chat tab */}
+                {isChat && (
+                  <div
+                    key="sep"
+                    className="flex-shrink-0 self-center mx-0.5"
+                    style={{ width: 1, height: 16, background: '#2a2a2a' }}
                   />
                 )}
-              </button>
+                <button
+                  key={wf.id}
+                  onClick={() => setWorkflow(wf.id)}
+                  className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors relative whitespace-nowrap flex-shrink-0"
+                  style={{
+                    color: active
+                      ? (isChat ? '#34d399' : '#a5b4fc')
+                      : '#52525b',
+                  }}
+                  onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = isChat ? '#6ee7b7' : '#71717a' }}
+                  onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#52525b' }}
+                  title={isChat ? 'Free chat — no document mode' : undefined}
+                >
+                  {isChat ? <MessageSquare size={12} /> : <span>{wf.emoji}</span>}
+                  <span>{wf.label}</span>
+                  {active && (
+                    <span
+                      className="absolute bottom-0 left-0 right-0 h-0.5"
+                      style={{ background: isChat ? '#10b981' : '#6366f1', borderRadius: '2px 2px 0 0' }}
+                    />
+                  )}
+                </button>
+              </>
             )
           })}
         </div>
@@ -850,31 +971,74 @@ export default function AIChatPanel() {
         className="flex-shrink-0 border-t px-3 pt-2.5 pb-3 space-y-2.5"
         style={{ borderColor: '#1e1e22', background: '#0d0d0f' }}
       >
+        {/* Free chat pill — shown when on a document workflow */}
+        {workflow !== 'general' && (
+          <button
+            onClick={() => setWorkflow('general')}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-all"
+            style={{
+              background: 'rgba(16,185,129,0.06)',
+              border: '1px solid rgba(16,185,129,0.2)',
+              color: '#6ee7b7',
+            }}
+            onMouseEnter={(e) => {
+              const el = e.currentTarget as HTMLButtonElement
+              el.style.background = 'rgba(16,185,129,0.12)'
+              el.style.borderColor = 'rgba(16,185,129,0.4)'
+            }}
+            onMouseLeave={(e) => {
+              const el = e.currentTarget as HTMLButtonElement
+              el.style.background = 'rgba(16,185,129,0.06)'
+              el.style.borderColor = 'rgba(16,185,129,0.2)'
+            }}
+          >
+            <MessageSquare size={13} style={{ flexShrink: 0 }} />
+            <span>Switch to free chat</span>
+            <span className="ml-auto text-[10px] opacity-50">no document mode</span>
+          </button>
+        )}
+
         {/* Doc context toggle + Clear */}
         <div className="flex items-center justify-between">
-          <button
-            onClick={() => setUseDocContext((v) => !v)}
-            className="flex items-center gap-2 text-xs transition-colors"
-            style={{ color: useDocContext ? '#818cf8' : '#3f3f46' }}
-          >
-            {useDocContext
-              ? <ToggleRight size={16} style={{ color: '#6366f1' }} />
-              : <ToggleLeft size={16} />
-            }
-            <span>Use document context</span>
-            {useDocContext && activeDocId && (() => {
-              const d = documents.find(x => x.id === activeDocId)
-              return d ? (
+          {workflow !== 'general' ? (
+            <button
+              onClick={() => setUseDocContext((v) => !v)}
+              className="flex items-center gap-2 text-xs transition-colors"
+              style={{ color: useDocContext ? '#818cf8' : '#3f3f46' }}
+            >
+              {useDocContext
+                ? <ToggleRight size={16} style={{ color: '#6366f1' }} />
+                : <ToggleLeft size={16} />
+              }
+              <span>Use document context</span>
+              {useDocContext && activeDocId && (() => {
+                const d = documents.find(x => x.id === activeDocId)
+                return d ? (
+                  <span
+                    className="truncate max-w-[100px] text-[10px] px-1.5 py-0.5 rounded"
+                    style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}
+                    title={d.title}
+                  >
+                    {d.title}
+                  </span>
+                ) : null
+              })()}
+            </button>
+          ) : (
+            /* In general mode: show a subtle indicator */
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium"
+                style={{ background: 'rgba(16,185,129,0.1)', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)' }}
+              >
                 <span
-                  className="truncate max-w-[100px] text-[10px] px-1.5 py-0.5 rounded"
-                  style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}
-                  title={d.title}
-                >
-                  {d.title}
-                </span>
-              ) : null
-            })()}
-          </button>
+                  className="rounded-full"
+                  style={{ width: 5, height: 5, background: '#10b981', display: 'inline-block' }}
+                />
+                Free chat mode
+              </span>
+            </div>
+          )}
 
           {workflowMessages.length > 0 && (
             <button
@@ -894,14 +1058,14 @@ export default function AIChatPanel() {
         {/* Input area */}
         <div
           className="flex flex-col gap-2 rounded-xl p-2.5"
-          style={{ background: '#18181b', border: `1px solid ${isStreaming ? 'rgba(99,102,241,0.4)' : '#2e2e32'}` }}
+          style={{ background: '#18181b', border: `1px solid ${isStreaming ? (workflow === 'general' ? 'rgba(16,185,129,0.4)' : 'rgba(99,102,241,0.4)') : '#2e2e32'}` }}
         >
           <textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Ask the ${WORKFLOWS.find((w) => w.id === workflow)?.label} AI…`}
+            placeholder={workflow === 'general' ? 'Ask anything — strategy, trade-offs, frameworks…' : `Ask the ${WORKFLOWS.find((w) => w.id === workflow)?.label} AI…`}
             rows={1}
             disabled={isStreaming}
             className="w-full bg-transparent resize-none outline-none text-sm leading-relaxed disabled:opacity-50"

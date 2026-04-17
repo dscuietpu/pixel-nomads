@@ -63,6 +63,7 @@ interface WorkspaceActions {
 
   // UI actions
   setActiveSidebarTab: (tab: string) => void
+  setActiveFolderId: (id: string | null) => void
   setTheme: (t: 'dark' | 'light') => void
   setSaveStatus: (s: SaveStatus) => void
   setPendingAICommand: (workflow: AIWorkflow, prompt: string) => void
@@ -78,6 +79,7 @@ export const useWorkspaceStore = create<Workspace & WorkspaceActions>()((set, ge
   insights:         [],
   fileNodes:        [],
   activeDocId:      null,
+  activeFolderId:   null,
   activeSidebarTab: 'chat',
   theme:            'dark',
   saveStatus:       'idle',
@@ -310,6 +312,7 @@ export const useWorkspaceStore = create<Workspace & WorkspaceActions>()((set, ge
 
   // ── UI actions ─────────────────────────────────────────────────────
   setActiveSidebarTab:    (tab)             => set({ activeSidebarTab: tab }),
+  setActiveFolderId:      (id)              => set({ activeFolderId: id }),
   setTheme:               (theme)           => set({ theme }),
   setSaveStatus:          (saveStatus)      => set({ saveStatus }),
   setPendingAICommand:    (workflow, prompt) => set({ pendingAICommand: { workflow, prompt } }),
