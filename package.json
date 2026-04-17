@@ -4,11 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
+    "postinstall": "prisma generate",
     "db:seed": "npx tsx prisma/seed.ts",
-    "db:reset": "npx prisma migrate reset --force && npx tsx prisma/seed.ts"
+    "db:reset": "npx prisma migrate reset --force && npx tsx prisma/seed.ts",
+    "db:push": "npx prisma db push",
+    "db:migrate": "npx prisma migrate deploy"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
