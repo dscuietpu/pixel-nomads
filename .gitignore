@@ -19,6 +19,8 @@
 .env.development.local
 .env.test.local
 .env.production.local
+# Keep the example file — it has no real secrets
+!.env.example
 
 # ── Database ─────────────────────────────────────────────────────────
 prisma/dev.db
