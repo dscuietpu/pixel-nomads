@@ -14,8 +14,8 @@ import WelcomeScreen from './onboarding/WelcomeScreen'
 export default function AppShell() {
   const {
     documents, theme, setTheme,
-    addDocument, setActiveDoc, setActiveSidebarTab,
-    activeSidebarTab, loadWorkspace, isLoading,
+    addDocumentFile, setActiveDoc, setActiveSidebarTab,
+    activeSidebarTab, activeFolderId, loadWorkspace, isLoading,
   } = useWorkspaceStore()
 
   useEffect(() => { loadWorkspace() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -46,10 +46,10 @@ export default function AppShell() {
         setCmdPaletteOpen(true)
         return
       }
-      // CMD+N → new general note
+      // CMD+N → new general note (always creates a FileNode so it appears in the tree)
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
-        const id = addDocument({ title: 'Untitled Note', content: '', type: 'general', tags: [] })
+        const id = addDocumentFile('general', 'Untitled Note', activeFolderId)
         setActiveDoc(id)
         return
       }
@@ -80,7 +80,7 @@ export default function AppShell() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeSidebarTab, addDocument, setActiveDoc, setActiveSidebarTab])
+  }, [activeSidebarTab, activeFolderId, addDocumentFile, setActiveDoc, setActiveSidebarTab])
 
   const noDocuments = documents.length === 0
 

@@ -105,13 +105,19 @@ export const useWorkspaceStore = create<Workspace & WorkspaceActions>()((set, ge
         insightsRes.json(),
         fileNodesRes.ok ? fileNodesRes.json() : Promise.resolve([]),
       ])
+      // Only make a document active if it has a matching FileNode in the tree.
+      // Documents without a FileNode are orphans (created via old code or
+      // partial deletes) — they'd show in the editor but not in the sidebar.
+      const fileNodeIds = new Set<string>(fileNodes.map((n: FileNode) => n.id))
+      const firstVisibleDoc = documents.find((d: Document) => fileNodeIds.has(d.id))
+
       set({
         documents,
         features,
         messages,
         insights,
         fileNodes,
-        activeDocId: documents[0]?.id ?? null,
+        activeDocId: firstVisibleDoc?.id ?? null,
         isLoading: false,
       })
     } catch (err) {
